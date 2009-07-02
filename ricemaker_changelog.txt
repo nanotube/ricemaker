@@ -1,3 +1,7 @@
+Version 0.5.2 (2009-07-02)
+
+- Get the grain value of a correct answer from the website dynamically, rather than having it hard coded.
+
 Version 0.5.1 (2008-12-31)
 
 - Add customizable user-agent spoof functionality. Default spoofs IE7 on Win XP SP2, can be customized with the '--useragent' argument.
