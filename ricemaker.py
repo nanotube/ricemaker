@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.1.2  13-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.1.3  14-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -48,7 +48,33 @@ import random
 import time
 import traceback
 import pickle
-	
+
+###############
+# Some configuration variables
+###############
+
+# if you have wordnet installed, set this to full path of commandline wordnet executable
+# on windows, it might be something like "C:\Program Files\WordNet\wn.exe" ?
+wordnetpath = '/usr/bin/wn' 
+
+# loop delay config: sleep a random number of seconds, between lowsec and highsec
+sleeplowsec = 1
+sleephighsec = 5
+
+# filename for internally generated dictionary
+# you may specify a full path here, otherwise it will just get written to the same
+# directory where this script resides (default behavior)
+freericedictfilename = 'freericewordlist.txt'
+
+# number of iterations between dictionary dumps to file
+# more often than 30 seconds is really unnecessary...
+# consider: iterations * avgsleeptime = time between dumps
+iterationsbetweendumps = 10
+
+###############
+# Start code
+###############
+
 class RiceMaker:
 
 	def __init__(self, url):
@@ -58,9 +84,9 @@ class RiceMaker:
 		result = response.read()
 		self.soup = BeautifulSoup(result)
 		
-		if os.path.lexists('freericewordlist.txt') and os.path.getsize('freericewordlist.txt') > 0:
+		if os.path.lexists(freericedictfilename) and os.path.getsize(freericedictfilename) > 0:
 			try:
-				f = open('freericewordlist.txt', 'rb')
+				f = open(freericedictfilename, 'rb')
 				self.ricewordlist = pickle.load(f)
 				f.close()
 				print "dict read successful"
@@ -72,14 +98,14 @@ class RiceMaker:
 			self.ricewordlist = {}
 		
 	def __del__(self):
-		f = open('freericewordlist.txt', 'wb')
+		f = open(freericedictfilename, 'wb')
 		pickle.dump(self.ricewordlist, f, -1)
 		f.close()
 		print 'dump successful'
 		
 	def dbDump(self):
 		try:
-			f = open('freericewordlist.txt', 'wb')
+			f = open(freericedictfilename, 'wb')
 			pickle.dump(self.ricewordlist, f, -1)
 			f.close()
 			print 'dump successful'
@@ -93,10 +119,10 @@ class RiceMaker:
 		while 1:
 			i = i+1
 			print "*************************"
-			if i % 10 == 0:
+			if i % iterationsbetweendumps == 0:
 				self.dbDump()
 			
-			time.sleep(random.randint(1,5)) # let's wait - to not hammer the server, and to not appear too much like a bot
+			time.sleep(random.randint(sleeplowsec,sleephighsec)) # let's wait - to not hammer the server, and to not appear too much like a bot
 			
 			try: #to catch all exceptions and ignore them
 				mydiv = self.soup.findAll(attrs={'class':'wordSelection'})
@@ -180,7 +206,7 @@ class RiceMaker:
 			return self.lookupInWordnet(targetword, wordlist)
 	
 	def lookupInWordnet(self, targetword, wordlist):
-		if os.path.lexists('/usr/bin/wn'):
+		if os.path.lexists(wordnetpath):
 			executionstring = "wn '" + targetword + "' -synsn -synsv -synsa -synsr -hypen -hypev -hypon -hypov"
 			p = subprocess.Popen(executionstring, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 			returncode = p.wait()
