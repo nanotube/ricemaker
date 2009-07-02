@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.1.3  14-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.1.4  14-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -54,22 +54,27 @@ import pickle
 ###############
 
 # if you have wordnet installed, set this to full path of commandline wordnet executable
-# on windows, it might be something like "C:\Program Files\WordNet\wn.exe" ?
+# on linux, this would usually be '/usr/bin/wn'
+# on windows, it might be something like 'C:\Program Files\WordNet\wn.exe'
 wordnetpath = '/usr/bin/wn' 
 
 # loop delay config: sleep a random number of seconds, between lowsec and highsec
+# it is recommended that you not reduce the average sleep to less than 3 seconds
+# so as not to stress the freerice server too much, and to not appear too much like a bot. :)
+# (notice how the average of the default values is 3 secs)
 sleeplowsec = 1
 sleephighsec = 5
 
 # filename for internally generated dictionary
 # you may specify a full path here, otherwise it will just get written to the same
 # directory where this script resides (default behavior)
+# no need to change this unless you really feel like it. 
 freericedictfilename = 'freericewordlist.txt'
 
 # number of iterations between dictionary dumps to file
-# more often than 30 seconds is really unnecessary...
+# more often than 5 minutes is really unnecessary...
 # consider: iterations * avgsleeptime = time between dumps
-iterationsbetweendumps = 10
+iterationsbetweendumps = 100
 
 ###############
 # Start code
