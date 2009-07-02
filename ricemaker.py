@@ -254,7 +254,7 @@ class RiceMaker(threading.Thread):
         self.queueitem = {'print':{}, 'dict':{}, 'rice':0}
         self.threadnumber = threadnumber
 
-        response = urllib2.urlopen(urllib2.Request(self.url, headers={'User-Agent':self.options.useragent})) # spoof ie7 on winxp sp2 header
+        response = urllib2.urlopen(urllib2.Request(self.url, headers={'User-Agent':self.options.useragent})) # spoof useragent
         result = response.read()
         self.soup = BeautifulSoup(result)
         
