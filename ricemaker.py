@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.2.1  18-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.2.2  18-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -55,7 +55,7 @@ class VersionInfo:
 	'''
 	def __init__(self):
 		self.name = "RiceMaker"
-		self.version = "0.2.1"
+		self.version = "0.2.2"
 		self.description = "Script to automatically generate rice on freerice.com"
 		self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
 		self.license = "GPL"
@@ -70,6 +70,7 @@ class RiceMaker:
 		self.options=None
 		self.ParseOptions()
 		
+		self.ricecounter = [0,0,0] #[total, previous iteration value, current iteration value]
 		self.url = url
 		response = urllib2.urlopen(self.url)
 		result = response.read()
@@ -111,33 +112,32 @@ class RiceMaker:
 							iterationsbetweendumps=100)
 		
 		(self.options, args) = parser.parse_args()
-		if self.options.debug:
-			print "Your commandline options:\n", self.options
+		self.printDebug("Your commandline options:\n", self.options)
 
 	def __del__(self):
 		if self.options != None: #when running with -h option, optparse exits before doing anything, including initializing options...
 			f = open(self.options.freericedictfilename, 'wb')
 			pickle.dump(self.ricewordlist, f, -1)
 			f.close()
-			print 'dump successful'
+			print 'Successfully wrote internal dictionary to file.'
 		
 	def dbDump(self):
 		try:
 			f = open(self.options.freericedictfilename, 'wb')
 			pickle.dump(self.ricewordlist, f, -1)
 			f.close()
-			print 'dump successful'
+			self.printDebug('dump successful')
 		except:
 			print 'bad dump'
 			traceback.print_exc()
 			pass # keep going, what else can we do?
 			
 	def start(self):
-		i = 0
+		self.iterator = 0
 		while 1:
-			i = i+1
+			self.iterator = self.iterator+1
 			print "*************************"
-			if i % self.options.iterationsbetweendumps == 0:
+			if self.iterator % self.options.iterationsbetweendumps == 0:
 				self.dbDump()
 			
 			time.sleep(random.uniform(self.options.sleeplowsec,self.options.sleephighsec)) # let's wait - to not hammer the server, and to not appear too much like a bot
@@ -146,7 +146,7 @@ class RiceMaker:
 				mydiv = self.soup.findAll(attrs={'class':'wordSelection'})
 				myol = mydiv[0].ol
 				targetword = str(myol.li.strong.string)
-				print 'iteration', i
+				print 'iteration', self.iterator
 				print "targetword:",targetword
 				
 				itemlist = myol.findAll('li')
@@ -167,9 +167,31 @@ class RiceMaker:
 				response = urllib2.urlopen(self.url, data=urllib.urlencode(self.postdict))
 				result = response.read()
 				self.soup = BeautifulSoup(result)
-				print self.soup.findAll(id='donatedAmount')[0]
-				print self.soup.findAll(attrs={'class':'vocabLevel'})[0]
 				
+				# get rice donation amount (take care of possible loopback at 100k grains
+				divstr = str(self.soup.findAll(id='donatedAmount')[0])
+				divmatch = re.search('([0-9]+)',divstr)
+				if divmatch != None:
+					self.ricecounter[1] = self.ricecounter[2]
+					self.ricecounter[2] = int(divmatch.group(1))
+					if self.ricecounter[2] - self.ricecounter[1] >= 0:
+						self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2] - self.ricecounter[1]
+					else:
+						self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2]
+						
+				print "Total rice donation this session:", self.ricecounter[0]
+				
+				self.correctpercentage = str(round(self.ricecounter[0]/10.0/self.iterator*100.0, 2))
+				
+				# get vocab level
+				divstr =  str(self.soup.findAll(attrs={'class':'vocabLevel'})[0])
+				divmatch = re.search('([0-9]+)',divstr)
+				if int(divmatch.group(1)) > 50:
+					vocablevel = 0
+				else:
+					vocablevel = int(divmatch.group(1))
+				print "Vocab level:", vocablevel
+
 				#if targetword not in self.ricewordlist.keys():
 				self.createDict(targetword,self.wordlist)
 			
@@ -194,16 +216,18 @@ class RiceMaker:
 		
 		answer = self.soup.findAll(id='correct')
 		if len(answer) != 0:
+			print "CORRECT.", self.correctpercentage+"% correct this session"
 			target, match = targetword, self.match
 		else:
 			answer = self.soup.findAll(id='incorrect')[0].string
 			target, match = answer.split(' = ')
+			print "INCORRECT. answer is", "'"+match+"'.", self.correctpercentage+"% correct this session"
 		
 		self.ricewordlist[str(target)] = str(match)
 		#print self.ricewordlist
 	
 	def lookupWord(self, targetword, wordlist):
-		print wordlist
+		self.printDebug('answer choices:', wordlist)
 		
 		try:
 			return self.lookupInMyDict(targetword,wordlist)
@@ -217,10 +241,11 @@ class RiceMaker:
 	def lookupInMyDict(self, targetword, wordlist):
 		try:
 			answer = self.ricewordlist[targetword]
-			print "internal dict match found!!!", answer
+			self.printDebug("internal dict match found!!!")
+			print "answer:", answer, "(source: internal dictionary)"
 			return answer
 		except KeyError: #not in our dict
-			print "no internal dict match found, trying wordnet"
+			self.printDebug("no internal dict match found, trying wordnet")
 			return self.lookupInWordnet(targetword, wordlist)
 	
 	def lookupInWordnet(self, targetword, wordlist):
@@ -233,10 +258,11 @@ class RiceMaker:
 			
 			for word in wordlist.keys():
 				if re.search(word, result):
-					print "wn match found!", word
+					self.printDebug("wn match found!")
+					print "answer:", word, "(source: wordnet)"
 					return word
 			else:
-				print "no wn match found, looking in dict.org"
+				self.printDebug("no wn match found, looking in dict.org")
 				return self.lookupInDictorg(targetword, wordlist)
 		else:
 			return self.lookupInDictorg(targetword, wordlist)
@@ -246,12 +272,20 @@ class RiceMaker:
 		result = response.read()
 		for word in wordlist.keys():
 			if re.search(word, result):
-				print "dict.org match found!", word
+				self.printDebug("dict.org match found!")
+				print "answer:", word, "(source: dict.org)"
 				return word
 		else:
-			print "no dict.org match found, returning random."
-			return wordlist.keys()[random.randint(0,3)]
-
+			self.printDebug("no dict.org match found, returning random.")
+			answer = wordlist.keys()[random.randint(0,3)]
+			print "answer:", word, "(source: random)"
+			return answer
+			
+	def printDebug(self, *args):
+		if self.options.debug:
+			for arg in args:
+				print arg,
+			print
 		
 if __name__ == '__main__':
 	rm = RiceMaker(url='http://www.freerice.com/index.php')
