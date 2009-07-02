@@ -1,0 +1,65 @@
+Version 0.5.1 (2008-12-31)
+
+- Add customizable user-agent spoof functionality. Default spoofs IE7 on Win XP SP2, can be customized with the '--useragent' argument.
+
+Version 0.5.0 (2008-12-31)
+
+- Add session saver functionality, which keeps track of total rice donation across multiple sessions.
+- Change default thread count to 1 since that is the recommended number to avoid bot detection.
+
+Version 0.4.1 (2008-12-29)
+
+- Update code to adjust for website change.
+
+Version 0.4.0 (2008-10-09)
+
+- Update code to adjust for website change.
+- Improve some error handling code.
+
+Version 0.3.6 (2007-11-29)
+
+- Update the "percent correct" code to account for the new 20 grain value per correct answer on freerice.
+
+Version 0.3.5 (2007-11-23)
+
+- Print a more informative internal dictionary statistic message upon exit.
+
+Version 0.3.4 (2007-11-23)
+
+- Allow skipping the internal dictionary lookups with the benchmark option, as well.  
+- Change default threads count to 15.
+
+Version 0.3.3 (2007-11-20)
+
+- Implement the "benchmark" option, allowing to skip lookups in dict.org, wordnet, or both. 
+- Some other minor code and cosmetic improvements
+
+Version 0.3.0 (2007-11-19)
+
+- Implement multithreading option, the ability to have multiple simultaneous threads playing freerice.com game independently, each sharing information in the common dictionary and aggregating the rice donation total.
+
+- Bunch of minor changes and code improvements
+
+Version 0.2.2 (2007-11-19)
+
+- Bunch of minor changes and code improvements
+
+Version 0.2.1 (2007-11-18)
+
+- Use optparse to accept command line arguments, instead of having hard-coded configuration variables at the top.
+- Store program info and version in an info class, to print out with -h and --version arguments.
+
+Version 0.1.4 (2007-11-14)
+
+- Change default iterations between dictionary file dumps from 10 to 100, to reduce disk writes.
+
+Version 0.1.3 (2007-11-14)
+
+- Add some configuration variables at the top.
+
+Version 0.1.2 (2007-11-14)
+
+- Earliest code version I have on hand, but probably not the first.
+- Plays the freerice.com game by looking up vocabulary words on dict.org and wordnet.
+- Compiles internal dictionary of correct answers, which is used, if word is in dictionary, in preference to dict.org and wordnet external lookups. 
+
