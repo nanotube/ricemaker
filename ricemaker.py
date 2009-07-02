@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.2.2  18-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.3.0  18-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -49,13 +49,15 @@ import random
 import time
 import traceback
 import pickle
+import threading
+import Queue
 
 class VersionInfo:
 	'''Version information storage
 	'''
 	def __init__(self):
 		self.name = "RiceMaker"
-		self.version = "0.2.2"
+		self.version = "0.3.0"
 		self.description = "Script to automatically generate rice on freerice.com"
 		self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
 		self.license = "GPL"
@@ -63,25 +65,79 @@ class VersionInfo:
 		self.author_email = "dfolkins@temple.edu"
 		self.platform = "Any"
 
-class RiceMaker:
-
-	def __init__(self, url):
+class RiceMakerController:
+	def __init__(self):
+		'''This class spawns a number of RiceMaker threads'''
+		
 		self.version = VersionInfo()
 		self.options=None
 		self.ParseOptions()
 		
-		self.ricecounter = [0,0,0] #[total, previous iteration value, current iteration value]
-		self.url = url
-		response = urllib2.urlopen(self.url)
-		result = response.read()
-		self.soup = BeautifulSoup(result)
+		self.readDictFile()
 		
+		self.ricecounter = 0
+		
+		self.queue = Queue.Queue(0)
+		self.queueitem = {}
+		
+		self.threadlist = []
+		for i in range(self.options.threads):
+			self.threadlist.append(RiceMaker(url='http://www.freerice.com/index.php', options = self.options, wordlist = self.ricewordlist, queue=self.queue, threadnumber = i))
+		print "**********************Created all threads!!**********************"
+		
+	def start(self):
+		'''This is where we start the threads, and process the queues'''
+		for t in self.threadlist:
+			t.start()
+			print "started thread"
+		
+		print "**********************Started all threads!!**********************"
+		
+		try:
+			self.iterator = 0
+			while 1:
+				self.iterator += 1
+				try:
+					self.queueitem = self.queue.get(block=True, timeout=10)
+					self.ricecounter += int(self.queueitem['rice'])
+					print "******************************"
+					print "iteration:", self.iterator
+					print "thread number:", self.queueitem['print']['threadnumber']
+					print "targetword:", self.queueitem['print']['targetword']
+					print "answer:", self.queueitem['print']['answer']
+					print "correct?", self.queueitem['print']['correct']
+					print "vocab level:", self.queueitem['print']['vocablevel']
+					print "total rice this session:", self.ricecounter
+					print "percent correct this session:", str(round(self.ricecounter/10.0/self.iterator*100.0, 2))+"%"
+					for key in self.queueitem['dict'].keys():
+						self.ricewordlist[key] = self.queueitem['dict'][key]
+					if self.iterator % self.options.iterationsbetweendumps == 0:
+						self.dbDump()
+				except Queue.Empty:
+					self.iterator -= 1
+					pass #empty queue, we will try again.
+				
+		except: #catch everything
+			print traceback.print_exc()
+			for t in self.threadlist:
+				t.cancel()
+	
+	def __del__(self):
+		if self.options != None: #when running with -h option, optparse exits before doing anything, including initializing options...
+			f = open(self.options.freericedictfilename, 'wb')
+			pickle.dump(self.ricewordlist, f, -1)
+			f.close()
+			print 'Successfully wrote internal dictionary to file.'
+			for t in self.threadlist:
+				t.cancel()
+	
+	def readDictFile(self):
 		if os.path.lexists(self.options.freericedictfilename) and os.path.getsize(self.options.freericedictfilename) > 0:
 			try:
 				f = open(self.options.freericedictfilename, 'rb')
 				self.ricewordlist = pickle.load(f)
 				f.close()
-				print "dict read successful"
+				print "dict read successful,", len(self.ricewordlist), "elements in dictionary"
 			except:
 				print "bad dict"
 				traceback.print_exc()
@@ -89,6 +145,18 @@ class RiceMaker:
 		else:
 			self.ricewordlist = {}
 
+	def dbDump(self):
+		try:
+			f = open(self.options.freericedictfilename, 'wb')
+			pickle.dump(self.ricewordlist, f, -1)
+			f.close()
+			self.printDebug('dump successful')
+		except:
+			print 'bad dump'
+			traceback.print_exc()
+			pass # keep going, what else can we do?
+
+	
 	def ParseOptions(self):
 		'''Read command line options
 		'''
@@ -103,64 +171,81 @@ class RiceMaker:
 		parser.add_option("-m", "--sleephighsec", action="store", type="float", dest="sleephighsec", help="Upper bound on the random number of seconds to sleep between iterations. [default: %default]")
 		parser.add_option("-f", "--freericedictfilename", action="store", dest="freericedictfilename", help="Filename for internally generated dictionary. You may specify a full path here, otherwise it will just get written to the same directory where this script resides (default behavior). No need to change this unless you really feel like it. [default: %default]")
 		parser.add_option("-i", "--iterationsbetweendumps", action="store", type="int", dest="iterationsbetweendumps", help="Number of iterations between dictionary dumps to file. More often than 5 minutes is really unnecessary (Time between dumps is iterationsbetweendumps * avgsleeptime = time between dumps.) [default: %default]")
+		parser.add_option("-t", "--threads", action="store", type="int", dest="threads", help="Number of simultaneous threads of RiceMaker to start. [default: %default]")
+
 		
 		parser.set_defaults(debug=False, 
 							wordnetpath="/usr/bin/wn", 
 							sleeplowsec=1,
 							sleephighsec=5,
 							freericedictfilename="freericewordlist.txt",
-							iterationsbetweendumps=100)
+							iterationsbetweendumps=1000,
+							threads=10)
 		
 		(self.options, args) = parser.parse_args()
 		self.printDebug("Your commandline options:\n", self.options)
 
-	def __del__(self):
-		if self.options != None: #when running with -h option, optparse exits before doing anything, including initializing options...
-			f = open(self.options.freericedictfilename, 'wb')
-			pickle.dump(self.ricewordlist, f, -1)
-			f.close()
-			print 'Successfully wrote internal dictionary to file.'
+	def printDebug(self, *args):
+		if self.options.debug:
+			for arg in args:
+				print arg,
+			print
+
+class RiceMaker(threading.Thread):
+
+	def __init__(self, url, options, wordlist, queue, threadnumber):
+		threading.Thread.__init__(self)
+		self.options=options
+		self.url = url
+		self.finished = threading.Event()
+		self.ricecounter = [0,0,0] #[total, previous iteration value, current iteration value]
+		self.ricewordlist = wordlist
+		self.queue = queue
+		self.queueitem = {'print':{}, 'dict':{}, 'rice':0}
+		self.threadnumber = threadnumber
+
+		response = urllib2.urlopen(self.url)
+		result = response.read()
+		self.soup = BeautifulSoup(result)
 		
-	def dbDump(self):
-		try:
-			f = open(self.options.freericedictfilename, 'wb')
-			pickle.dump(self.ricewordlist, f, -1)
-			f.close()
-			self.printDebug('dump successful')
-		except:
-			print 'bad dump'
-			traceback.print_exc()
-			pass # keep going, what else can we do?
+	def cancel(self):
+		"""Stop the thread"""
+		self.finished.set()
 			
-	def start(self):
+	def run(self):
 		self.iterator = 0
-		while 1:
+		while not self.finished.isSet():
 			self.iterator = self.iterator+1
-			print "*************************"
-			if self.iterator % self.options.iterationsbetweendumps == 0:
-				self.dbDump()
+			#print "*************************"
+			#~ if self.iterator % self.options.iterationsbetweendumps == 0:
+				#~ self.dbDump()
 			
 			time.sleep(random.uniform(self.options.sleeplowsec,self.options.sleephighsec)) # let's wait - to not hammer the server, and to not appear too much like a bot
+			
+			self.queueitem = {'print':{'threadnumber':self.threadnumber}, 'dict':{}, 'rice':0}
 			
 			try: #to catch all exceptions and ignore them
 				mydiv = self.soup.findAll(attrs={'class':'wordSelection'})
 				myol = mydiv[0].ol
-				targetword = str(myol.li.strong.string)
-				print 'iteration', self.iterator
-				print "targetword:",targetword
+				targetword = re.sub("&#8217;", "'", str(myol.li.strong.string))
+				
+				#print 'iteration', self.iterator
+				#print "targetword:",targetword
+				self.queueitem['print']['targetword'] = targetword
+				
 				
 				itemlist = myol.findAll('li')
 				self.wordlist={}
 				for li in itemlist[1:5]:
 					## format: 'word' = ' 1 '
-					self.wordlist[str(li.a.string)] = str(li.noscript.input['value'])
+					self.wordlist[re.sub("&#8217;", "'", str(li.a.string))] = str(li.noscript.input['value'])
 					#wordlist.append(li.a.string)
 					
 				self.match = self.lookupWord(targetword,self.wordlist)
 				self.postdict = {'PAST':'','INFO':'','INFO2':''}
 				for key in self.postdict.keys():
 					self.postdict[key] = self.soup.form.find("input",{'name':key})['value']
-				self.postdict['SELECTED'] = self.wordlist[self.match]
+				self.postdict['SELECTED'] = self.wordlist[re.sub("&#8217;", "'", self.match)]
 				
 				#print self.postdict
 
@@ -171,17 +256,24 @@ class RiceMaker:
 				# get rice donation amount (take care of possible loopback at 100k grains
 				divstr = str(self.soup.findAll(id='donatedAmount')[0])
 				divmatch = re.search('([0-9]+)',divstr)
+				#~ if divmatch != None:
+					#~ self.ricecounter[1] = self.ricecounter[2]
+					#~ self.ricecounter[2] = int(divmatch.group(1))
+					#~ if self.ricecounter[2] - self.ricecounter[1] >= 0:
+						#~ self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2] - self.ricecounter[1]
+					#~ else:
+						#~ self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2]
+						
+				#~ print "Total rice donation this session:", self.ricecounter[0]
 				if divmatch != None:
 					self.ricecounter[1] = self.ricecounter[2]
 					self.ricecounter[2] = int(divmatch.group(1))
 					if self.ricecounter[2] - self.ricecounter[1] >= 0:
-						self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2] - self.ricecounter[1]
+						self.queueitem['rice'] = self.ricecounter[2] - self.ricecounter[1]
 					else:
-						self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2]
-						
-				print "Total rice donation this session:", self.ricecounter[0]
+						self.queueitem['rice'] = self.ricecounter[2]
 				
-				self.correctpercentage = str(round(self.ricecounter[0]/10.0/self.iterator*100.0, 2))
+				#self.correctpercentage = str(round(self.ricecounter[0]/10.0/self.iterator*100.0, 2))
 				
 				# get vocab level
 				divstr =  str(self.soup.findAll(attrs={'class':'vocabLevel'})[0])
@@ -190,10 +282,13 @@ class RiceMaker:
 					vocablevel = 0
 				else:
 					vocablevel = int(divmatch.group(1))
-				print "Vocab level:", vocablevel
+				#print "Vocab level:", vocablevel
+				self.queueitem['print']['vocablevel'] = vocablevel
 
 				#if targetword not in self.ricewordlist.keys():
 				self.createDict(targetword,self.wordlist)
+				
+				self.queue.put(self.queueitem)
 			
 			except KeyboardInterrupt:
 				raise
@@ -208,6 +303,7 @@ class RiceMaker:
 				self.soup = BeautifulSoup(result)
 				# just keep going, don't care...
 				pass
+		self.finished.set()
 	
 	def createDict(self, targetword, wordlist):
 		'''find if our new soup says our previous match was correct
@@ -216,14 +312,17 @@ class RiceMaker:
 		
 		answer = self.soup.findAll(id='correct')
 		if len(answer) != 0:
-			print "CORRECT.", self.correctpercentage+"% correct this session"
+			#print "CORRECT.", self.correctpercentage+"% correct this session"
 			target, match = targetword, self.match
+			self.queueitem['print']['correct'] = "True"
 		else:
 			answer = self.soup.findAll(id='incorrect')[0].string
 			target, match = answer.split(' = ')
-			print "INCORRECT. answer is", "'"+match+"'.", self.correctpercentage+"% correct this session"
+			self.queueitem['print']['correct'] = "False"
+			#print "INCORRECT. answer is", "'"+match+"'.", self.correctpercentage+"% correct this session"
 		
-		self.ricewordlist[str(target)] = str(match)
+		#self.ricewordlist[str(target)] = str(match)
+		self.queueitem['dict'][str(target)] = str(match)
 		#print self.ricewordlist
 	
 	def lookupWord(self, targetword, wordlist):
@@ -240,10 +339,11 @@ class RiceMaker:
 	
 	def lookupInMyDict(self, targetword, wordlist):
 		try:
-			answer = self.ricewordlist[targetword]
+			word = self.ricewordlist[targetword]
 			self.printDebug("internal dict match found!!!")
-			print "answer:", answer, "(source: internal dictionary)"
-			return answer
+			#print "answer:", answer, "(source: internal dictionary)"
+			self.queueitem['print']['answer'] = word+" (source: internal dictionary)"
+			return word
 		except KeyError: #not in our dict
 			self.printDebug("no internal dict match found, trying wordnet")
 			return self.lookupInWordnet(targetword, wordlist)
@@ -259,7 +359,8 @@ class RiceMaker:
 			for word in wordlist.keys():
 				if re.search(word, result):
 					self.printDebug("wn match found!")
-					print "answer:", word, "(source: wordnet)"
+					#print "answer:", word, "(source: wordnet)"
+					self.queueitem['print']['answer'] = word+" (source: wordnet)"
 					return word
 			else:
 				self.printDebug("no wn match found, looking in dict.org")
@@ -273,12 +374,14 @@ class RiceMaker:
 		for word in wordlist.keys():
 			if re.search(word, result):
 				self.printDebug("dict.org match found!")
-				print "answer:", word, "(source: dict.org)"
+				#print "answer:", word, "(source: dict.org)"
+				self.queueitem['print']['answer'] = word+" (source: dict.org)"
 				return word
 		else:
 			self.printDebug("no dict.org match found, returning random.")
 			answer = wordlist.keys()[random.randint(0,3)]
-			print "answer:", word, "(source: random)"
+			#print "answer:", word, "(source: random)"
+			self.queueitem['print']['answer'] = answer+" (source: random)"
 			return answer
 			
 	def printDebug(self, *args):
@@ -288,5 +391,7 @@ class RiceMaker:
 			print
 		
 if __name__ == '__main__':
-	rm = RiceMaker(url='http://www.freerice.com/index.php')
-	rm.start()
+	#rm = RiceMaker(url='http://www.freerice.com/index.php')
+	#rm.start()
+	rmc = RiceMakerController()
+	rmc.start()
