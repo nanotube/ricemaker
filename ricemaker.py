@@ -176,11 +176,11 @@ class RiceMakerController:
 		
 		parser.set_defaults(debug=False, 
 							wordnetpath="/usr/bin/wn", 
-							sleeplowsec=1,
-							sleephighsec=5,
+							sleeplowsec=3,
+							sleephighsec=6,
 							freericedictfilename="freericewordlist.txt",
 							iterationsbetweendumps=1000,
-							threads=10)
+							threads=15)
 		
 		(self.options, args) = parser.parse_args()
 		self.printDebug("Your commandline options:\n", self.options)
