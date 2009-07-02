@@ -13,7 +13,7 @@
 # Version:      ricemaker.py  0.1.2  13-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
-#               http://astro.temple.edu/~dfolkins/ricemaker.py
+#               http://smokyflavor.wikispaces.com/RiceMaker
 #
 #######
 
