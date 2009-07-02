@@ -2,7 +2,7 @@
 #################################################
 ##
 ## RiceMaker: Automate the gameplay on freerice.com
-## Copyright (C) 2007  Daniel Folkinshteyn <dfolkins@temple.edu>
+## Copyright (C) 2008  Daniel Folkinshteyn <dfolkins@temple.edu>
 ##
 ## http://smokyflavor.wikispaces.com/RiceMaker
 ##
@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.4.1  29-Dec-2008  dfolkins@temple.edu
+# Version:      ricemaker.py  0.5.0  31-Dec-2008  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -57,7 +57,7 @@ class VersionInfo:
     '''
     def __init__(self):
         self.name = "RiceMaker"
-        self.version = "0.4.1"
+        self.version = "0.5.0"
         self.description = "Script to automatically generate rice on freerice.com"
         self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
         self.license = "GPL"
@@ -72,8 +72,11 @@ class RiceMakerController:
         self.version = VersionInfo()
         self.options=None
         self.ParseOptions()
-        
+        self.session_filename="ricemakersession.txt"
         self.readDictFile()
+        
+        self.running_rice_total = 0
+        self.read_session_info()
         
         self.ricecounter = 0
         
@@ -113,6 +116,7 @@ class RiceMakerController:
                     print "correct?", self.queueitem['print']['correct']
                     print "vocab level:", self.queueitem['print']['vocablevel']
                     print "total rice this session:", self.ricecounter
+                    print "total rice all recorded sessions:", self.running_rice_total + self.ricecounter
                     print "percent correct this session:", str(round(self.ricecounter/10.0/self.iterator*50.0, 2))+"%"
                     print "iterations per second", str(self.iterator/(time.time()-self.starttime)), ";", "rice per second", str(self.ricecounter/(time.time() - self.starttime))
                     print "******************************************"
@@ -120,6 +124,7 @@ class RiceMakerController:
                         self.ricewordlist[key] = self.queueitem['dict'][key]
                     if self.iterator % self.options.iterationsbetweendumps == 0:
                         self.dbDump()
+                        self.write_session_info()
                 except Queue.Empty:
                     self.iterator -= 1
                     pass #empty queue, we will try again.
@@ -135,6 +140,14 @@ class RiceMakerController:
             pickle.dump(self.ricewordlist, f, -1)
             f.close()
             print 'Successfully wrote internal dictionary to file.', len(self.ricewordlist), "elements in dictionary."
+            
+            f = open(self.session_filename, 'wb')
+            pickle.dump(self.running_rice_total + self.ricecounter, f, -1)
+            f.close()
+            print 'Successfully wrote session info file.'
+            print 'Rice this session:', self.ricecounter
+            print 'Rice all stored sessions:', self.running_rice_total + self.ricecounter
+            
             for t in self.threadlist:
                 t.cancel()
     
@@ -151,7 +164,7 @@ class RiceMakerController:
                 self.ricewordlist = {}
         else:
             self.ricewordlist = {}
-
+    
     def dbDump(self):
         try:
             f = open(self.options.freericedictfilename, 'wb')
@@ -163,6 +176,30 @@ class RiceMakerController:
             traceback.print_exc()
             pass # keep going, what else can we do?
 
+    def read_session_info(self):
+        if os.path.exists(self.session_filename) and os.path.getsize(self.session_filename) > 0:
+            try:
+                f = open(self.session_filename, 'rb')
+                self.running_rice_total = pickle.load(f)
+                f.close()
+                print "session read successful. current running rice total:", self.running_rice_total
+            except:
+                print "bad session info file"
+                traceback.print_exc()
+                self.running_rice_total = 0
+        else:
+            self.running_rice_total = 0
+    
+    def write_session_info(self):
+        try:
+            f = open(self.session_filename, 'wb')
+            pickle.dump(self.running_rice_total + self.ricecounter, f, -1)
+            f.close()
+            print 'Session dump successful, total rice:', self.running_rice_total + self.ricecounter
+        except:
+            print 'bad session dump'
+            traceback.print_exc()
+            pass # keep going, what else can we do?
     
     def ParseOptions(self):
         '''Read command line options
@@ -173,22 +210,24 @@ class RiceMakerController:
                         formatter=optparse.TitledHelpFormatter(),
                         usage="python %prog [options]")
         parser.add_option("-d", "--debug", action="store_true", dest="debug", help="Debug mode (print some extra debug output). [default: %default]")
+        parser.add_option("-s", "--savesession", action="store_true", dest="savesession", help="Save session in a file. This will store a running total of the rice generated by you, across multiple runs of ricemaker. [default: %default]")
         parser.add_option("-w", "--wordnetpath", action="store", dest="wordnetpath", help="Full path to the WordNet commandline executable, if installed. On Linux, something like '/usr/bin/wn'; on Windows, something like 'C:\Program Files\WordNet\wn.exe'. [default: %default]")
         parser.add_option("-l", "--sleeplowsec", action="store", type="float", dest="sleeplowsec", help="Lower bound on the random number of seconds to sleep between iterations. [default: %default]")
         parser.add_option("-m", "--sleephighsec", action="store", type="float", dest="sleephighsec", help="Upper bound on the random number of seconds to sleep between iterations. [default: %default]")
         parser.add_option("-f", "--freericedictfilename", action="store", dest="freericedictfilename", help="Filename for internally generated dictionary. You may specify a full path here, otherwise it will just get written to the same directory where this script resides (default behavior). No need to change this unless you really feel like it. [default: %default]")
         parser.add_option("-i", "--iterationsbetweendumps", action="store", type="int", dest="iterationsbetweendumps", help="Number of iterations between dictionary dumps to file. More often than 5 minutes is really unnecessary (Time between dumps is iterationsbetweendumps * avgsleeptime = time between dumps.) [default: %default]")
-        parser.add_option("-t", "--threads", action="store", type="int", dest="threads", help="Number of simultaneous threads of RiceMaker to start. [default: %default]")
+        parser.add_option("-t", "--threads", action="store", type="int", dest="threads", help="Number of simultaneous threads of RiceMaker to start. Stick with 1 to reduce probability of being filtered out as a bot. [default: %default]")
         parser.add_option("-b", "--benchmark", type="choice", action="append", dest="benchmark", choices=['dict.org','wordnet', 'idict'], help="For benchmarking or dictionary building purposes: do you want to skip dict.org lookups and/or wordnet and/or internal dictionary lookups ('dict.org' to skip dict.org, 'wordnet' to skip wordnet, 'idict' to skip internal dictionary). [default: %default]")
 
         
         parser.set_defaults(debug=False, 
+                            savesession=True,
                             wordnetpath="/usr/bin/wn", 
                             sleeplowsec=3,
                             sleephighsec=6,
                             freericedictfilename="freericewordlist.txt",
                             iterationsbetweendumps=1000,
-                            threads=15,
+                            threads=1,
                             benchmark=[])
         
         (self.options, args) = parser.parse_args()
