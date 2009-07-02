@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.3.0  18-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.3.3  20-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -57,7 +57,7 @@ class VersionInfo:
 	'''
 	def __init__(self):
 		self.name = "RiceMaker"
-		self.version = "0.3.0"
+		self.version = "0.3.3"
 		self.description = "Script to automatically generate rice on freerice.com"
 		self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
 		self.license = "GPL"
@@ -66,8 +66,8 @@ class VersionInfo:
 		self.platform = "Any"
 
 class RiceMakerController:
+	'''This class spawns a number of RiceMaker threads.'''
 	def __init__(self):
-		'''This class spawns a number of RiceMaker threads'''
 		
 		self.version = VersionInfo()
 		self.options=None
@@ -83,15 +83,21 @@ class RiceMakerController:
 		self.threadlist = []
 		for i in range(self.options.threads):
 			self.threadlist.append(RiceMaker(url='http://www.freerice.com/index.php', options = self.options, wordlist = self.ricewordlist, queue=self.queue, threadnumber = i))
-		print "**********************Created all threads!!**********************"
 		
 	def start(self):
-		'''This is where we start the threads, and process the queues'''
+		'''This is where we start the threads, and process the data queue'''
+		
+		print "Starting threads..."
+		i = 0
 		for t in self.threadlist:
 			t.start()
-			print "started thread"
+			print "started thread", i
+			i += 1
 		
-		print "**********************Started all threads!!**********************"
+		print "Started all threads!"
+		print "******************************************"
+		
+		self.starttime = time.time() #our start time - will use this to figure out rice per second stats
 		
 		try:
 			self.iterator = 0
@@ -100,7 +106,6 @@ class RiceMakerController:
 				try:
 					self.queueitem = self.queue.get(block=True, timeout=10)
 					self.ricecounter += int(self.queueitem['rice'])
-					print "******************************"
 					print "iteration:", self.iterator
 					print "thread number:", self.queueitem['print']['threadnumber']
 					print "targetword:", self.queueitem['print']['targetword']
@@ -109,6 +114,8 @@ class RiceMakerController:
 					print "vocab level:", self.queueitem['print']['vocablevel']
 					print "total rice this session:", self.ricecounter
 					print "percent correct this session:", str(round(self.ricecounter/10.0/self.iterator*100.0, 2))+"%"
+					print "iterations per second", str(self.iterator/(time.time()-self.starttime)), ";", "rice per second", str(self.ricecounter/(time.time() - self.starttime))
+					print "******************************************"
 					for key in self.queueitem['dict'].keys():
 						self.ricewordlist[key] = self.queueitem['dict'][key]
 					if self.iterator % self.options.iterationsbetweendumps == 0:
@@ -172,6 +179,7 @@ class RiceMakerController:
 		parser.add_option("-f", "--freericedictfilename", action="store", dest="freericedictfilename", help="Filename for internally generated dictionary. You may specify a full path here, otherwise it will just get written to the same directory where this script resides (default behavior). No need to change this unless you really feel like it. [default: %default]")
 		parser.add_option("-i", "--iterationsbetweendumps", action="store", type="int", dest="iterationsbetweendumps", help="Number of iterations between dictionary dumps to file. More often than 5 minutes is really unnecessary (Time between dumps is iterationsbetweendumps * avgsleeptime = time between dumps.) [default: %default]")
 		parser.add_option("-t", "--threads", action="store", type="int", dest="threads", help="Number of simultaneous threads of RiceMaker to start. [default: %default]")
+		parser.add_option("-b", "--benchmark", type="choice", action="append", dest="benchmark", choices=['dict','wordnet'], help="For benchmarking or dictionary building purposes: do you want to skip dict.org lookups and/or wordnet lookups ('dict' to skip dict.org, 'wordnet' to skip wordnet). [default: %default]")
 
 		
 		parser.set_defaults(debug=False, 
@@ -180,7 +188,8 @@ class RiceMakerController:
 							sleephighsec=6,
 							freericedictfilename="freericewordlist.txt",
 							iterationsbetweendumps=1000,
-							threads=15)
+							threads=1,
+							benchmark=[])
 		
 		(self.options, args) = parser.parse_args()
 		self.printDebug("Your commandline options:\n", self.options)
@@ -216,9 +225,6 @@ class RiceMaker(threading.Thread):
 		self.iterator = 0
 		while not self.finished.isSet():
 			self.iterator = self.iterator+1
-			#print "*************************"
-			#~ if self.iterator % self.options.iterationsbetweendumps == 0:
-				#~ self.dbDump()
 			
 			time.sleep(random.uniform(self.options.sleeplowsec,self.options.sleephighsec)) # let's wait - to not hammer the server, and to not appear too much like a bot
 			
@@ -229,25 +235,19 @@ class RiceMaker(threading.Thread):
 				myol = mydiv[0].ol
 				targetword = re.sub("&#8217;", "'", str(myol.li.strong.string))
 				
-				#print 'iteration', self.iterator
-				#print "targetword:",targetword
 				self.queueitem['print']['targetword'] = targetword
-				
 				
 				itemlist = myol.findAll('li')
 				self.wordlist={}
 				for li in itemlist[1:5]:
 					## format: 'word' = ' 1 '
 					self.wordlist[re.sub("&#8217;", "'", str(li.a.string))] = str(li.noscript.input['value'])
-					#wordlist.append(li.a.string)
 					
 				self.match = self.lookupWord(targetword,self.wordlist)
 				self.postdict = {'PAST':'','INFO':'','INFO2':''}
 				for key in self.postdict.keys():
 					self.postdict[key] = self.soup.form.find("input",{'name':key})['value']
 				self.postdict['SELECTED'] = self.wordlist[re.sub("&#8217;", "'", self.match)]
-				
-				#print self.postdict
 
 				response = urllib2.urlopen(self.url, data=urllib.urlencode(self.postdict))
 				result = response.read()
@@ -255,16 +255,9 @@ class RiceMaker(threading.Thread):
 				
 				# get rice donation amount (take care of possible loopback at 100k grains
 				divstr = str(self.soup.findAll(id='donatedAmount')[0])
+				if self.options.threads == 1:
+					print divstr
 				divmatch = re.search('([0-9]+)',divstr)
-				#~ if divmatch != None:
-					#~ self.ricecounter[1] = self.ricecounter[2]
-					#~ self.ricecounter[2] = int(divmatch.group(1))
-					#~ if self.ricecounter[2] - self.ricecounter[1] >= 0:
-						#~ self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2] - self.ricecounter[1]
-					#~ else:
-						#~ self.ricecounter[0] = self.ricecounter[0] + self.ricecounter[2]
-						
-				#~ print "Total rice donation this session:", self.ricecounter[0]
 				if divmatch != None:
 					self.ricecounter[1] = self.ricecounter[2]
 					self.ricecounter[2] = int(divmatch.group(1))
@@ -273,8 +266,6 @@ class RiceMaker(threading.Thread):
 					else:
 						self.queueitem['rice'] = self.ricecounter[2]
 				
-				#self.correctpercentage = str(round(self.ricecounter[0]/10.0/self.iterator*100.0, 2))
-				
 				# get vocab level
 				divstr =  str(self.soup.findAll(attrs={'class':'vocabLevel'})[0])
 				divmatch = re.search('([0-9]+)',divstr)
@@ -282,10 +273,8 @@ class RiceMaker(threading.Thread):
 					vocablevel = 0
 				else:
 					vocablevel = int(divmatch.group(1))
-				#print "Vocab level:", vocablevel
 				self.queueitem['print']['vocablevel'] = vocablevel
 
-				#if targetword not in self.ricewordlist.keys():
 				self.createDict(targetword,self.wordlist)
 				
 				self.queue.put(self.queueitem)
@@ -312,18 +301,14 @@ class RiceMaker(threading.Thread):
 		
 		answer = self.soup.findAll(id='correct')
 		if len(answer) != 0:
-			#print "CORRECT.", self.correctpercentage+"% correct this session"
 			target, match = targetword, self.match
 			self.queueitem['print']['correct'] = "True"
 		else:
 			answer = self.soup.findAll(id='incorrect')[0].string
 			target, match = answer.split(' = ')
 			self.queueitem['print']['correct'] = "False"
-			#print "INCORRECT. answer is", "'"+match+"'.", self.correctpercentage+"% correct this session"
 		
-		#self.ricewordlist[str(target)] = str(match)
 		self.queueitem['dict'][str(target)] = str(match)
-		#print self.ricewordlist
 	
 	def lookupWord(self, targetword, wordlist):
 		self.printDebug('answer choices:', wordlist)
@@ -341,7 +326,6 @@ class RiceMaker(threading.Thread):
 		try:
 			word = self.ricewordlist[targetword]
 			self.printDebug("internal dict match found!!!")
-			#print "answer:", answer, "(source: internal dictionary)"
 			self.queueitem['print']['answer'] = word+" (source: internal dictionary)"
 			return word
 		except KeyError: #not in our dict
@@ -349,17 +333,15 @@ class RiceMaker(threading.Thread):
 			return self.lookupInWordnet(targetword, wordlist)
 	
 	def lookupInWordnet(self, targetword, wordlist):
-		if os.path.lexists(self.options.wordnetpath):
+		if os.path.lexists(self.options.wordnetpath) and ('wordnet' not in self.options.benchmark):
 			executionstring = "wn '" + targetword + "' -synsn -synsv -synsa -synsr -hypen -hypev -hypon -hypov"
 			p = subprocess.Popen(executionstring, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
 			returncode = p.wait()
 			result = p.stdout.read()
-			#print "wnresult:", result
 			
 			for word in wordlist.keys():
 				if re.search(word, result):
 					self.printDebug("wn match found!")
-					#print "answer:", word, "(source: wordnet)"
 					self.queueitem['print']['answer'] = word+" (source: wordnet)"
 					return word
 			else:
@@ -369,18 +351,21 @@ class RiceMaker(threading.Thread):
 			return self.lookupInDictorg(targetword, wordlist)
 	
 	def lookupInDictorg(self, targetword, wordlist):
-		response = urllib2.urlopen('http://www.dict.org/bin/Dict', data=urllib.urlencode({'Query':targetword, 'Form':'Dict1', 'Strategy':'*', 'Database':'*'}))
-		result = response.read()
-		for word in wordlist.keys():
-			if re.search(word, result):
-				self.printDebug("dict.org match found!")
-				#print "answer:", word, "(source: dict.org)"
-				self.queueitem['print']['answer'] = word+" (source: dict.org)"
-				return word
+		if 'dict' not in self.options.benchmark:
+			response = urllib2.urlopen('http://www.dict.org/bin/Dict', data=urllib.urlencode({'Query':targetword, 'Form':'Dict1', 'Strategy':'*', 'Database':'*'}))
+			result = response.read()
+			for word in wordlist.keys():
+				if re.search(word, result):
+					self.printDebug("dict.org match found!")
+					self.queueitem['print']['answer'] = word+" (source: dict.org)"
+					return word
+			else:
+				self.printDebug("no dict.org match found, returning random.")
+				answer = wordlist.keys()[random.randint(0,3)]
+				self.queueitem['print']['answer'] = answer+" (source: random)"
+				return answer
 		else:
-			self.printDebug("no dict.org match found, returning random.")
 			answer = wordlist.keys()[random.randint(0,3)]
-			#print "answer:", word, "(source: random)"
 			self.queueitem['print']['answer'] = answer+" (source: random)"
 			return answer
 			
@@ -391,7 +376,5 @@ class RiceMaker(threading.Thread):
 			print
 		
 if __name__ == '__main__':
-	#rm = RiceMaker(url='http://www.freerice.com/index.php')
-	#rm.start()
 	rmc = RiceMakerController()
 	rmc.start()
