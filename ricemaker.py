@@ -1,10 +1,32 @@
 #!/usr/bin/python
-#######
+#################################################
+##
+## RiceMaker: Automate the gameplay on freerice.com
+## Copyright (C) 2007  Daniel Folkinshteyn <dfolkins@temple.edu>
+##
+## http://smokyflavor.wikispaces.com/RiceMaker
+##
+## This program is free software; you can redistribute it and/or
+## modify it under the terms of the GNU General Public License
+## as published by the Free Software Foundation; either version 3
+## of the License, or (at your option) any later version.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see <http://www.gnu.org/licenses/>.
+##
+#################################################
+
+#################################################
 # requires python (http://www.python.org)
 # requires BeautifulSoup module (http://www.crummy.com/software/BeautifulSoup/)
 # run with command:
 #               python ricemaker.py
-#######
+#################################################
 # ricemaker.py
 #               Script to automatically generate rice on freerice.com
 #
@@ -15,7 +37,7 @@
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
 #
-#######
+#################################################
 
 import urllib, urllib2
 from BeautifulSoup import BeautifulSoup
