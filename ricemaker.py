@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.4.0  09-Oct-2008  dfolkins@temple.edu
+# Version:      ricemaker.py  0.4.1  29-Dec-2008  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -249,7 +249,7 @@ class RiceMaker(threading.Thread):
                 #self.postdict = {'PAST':'','INFO':'','INFO2':''}
                 self.postdict = {'PAST':'','INFO':'','INFO2':'', 'INFO3':''}
                 for key in self.postdict.keys():
-                    self.postdict[key] = self.soup.form.find("input",{'name':key})['value']
+                    self.postdict[key] = self.soup.find("input",{'name':key})['value']
                 
                 try:
                     self.postdict['SELECTED'] = self.wordlist[re.sub("&#8217;", "'", self.match)].strip()
