@@ -32,10 +32,10 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.5.1  31-Dec-2008  dfolkins@temple.edu
+# Version:      ricemaker.py  0.5.1  02-Jul-2009  dfolkins@gmail.com
 #
 # Project home (where to get the freshest version): 
-#               http://smokyflavor.wikispaces.com/RiceMaker
+#               http://wiki.df.dreamhosters.com/wiki/RiceMaker
 #
 #################################################
 
@@ -57,9 +57,9 @@ class VersionInfo:
     '''
     def __init__(self):
         self.name = "RiceMaker"
-        self.version = "0.5.1"
+        self.version = "0.5.2"
         self.description = "Script to automatically generate rice on freerice.com"
-        self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
+        self.url = "http://wiki.df.dreamhosters.com/wiki/RiceMaker"
         self.license = "GPL"
         self.author = "Daniel Folkinshteyn"
         self.author_email = "dfolkins@temple.edu"
@@ -79,6 +79,7 @@ class RiceMakerController:
         self.read_session_info()
         
         self.ricecounter = 0
+        self.answer_value = self.get_answer_value(url='http://www.freerice.com/index.php')
         
         self.queue = Queue.Queue(0)
         self.queueitem = {}
@@ -86,7 +87,20 @@ class RiceMakerController:
         self.threadlist = []
         for i in range(self.options.threads):
             self.threadlist.append(RiceMaker(url='http://www.freerice.com/index.php', options = self.options, wordlist = self.ricewordlist, queue=self.queue, threadnumber = i))
+    
+    def get_answer_value(self, url):
+        response = urllib2.urlopen(urllib2.Request(url, headers={'User-Agent':self.options.useragent})) # spoof useragent
+        result = response.read()
+        soup = BeautifulSoup(result)
+        try:
+            text = soup.find(text=re.compile(r'1 right ='))
+            answer_value = re.search(r'=\s*(\d+)\s*grains', text).group(1)
+            return int(answer_value)
+        except:
+            print 'Failed to get answer value, using 10 as default...'
+            return 10 # if we can't find the grain value, just assume it's 10. 
         
+    
     def start(self):
         '''This is where we start the threads, and process the data queue'''
         
@@ -117,7 +131,7 @@ class RiceMakerController:
                     print "vocab level:", self.queueitem['print']['vocablevel']
                     print "total rice this session:", self.ricecounter
                     print "total rice all recorded sessions:", self.running_rice_total + self.ricecounter
-                    print "percent correct this session:", str(round(self.ricecounter/10.0/self.iterator*50.0, 2))+"%"
+                    print "percent correct this session:", str(round(self.ricecounter/self.answer_value/self.iterator*100.0, 2))+"%"
                     print "iterations per second", str(self.iterator/(time.time()-self.starttime)), ";", "rice per second", str(self.ricecounter/(time.time() - self.starttime))
                     print "******************************************"
                     for key in self.queueitem['dict'].keys():
