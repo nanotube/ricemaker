@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.3.5  23-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.3.6  29-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -57,7 +57,7 @@ class VersionInfo:
 	'''
 	def __init__(self):
 		self.name = "RiceMaker"
-		self.version = "0.3.5"
+		self.version = "0.3.6"
 		self.description = "Script to automatically generate rice on freerice.com"
 		self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
 		self.license = "GPL"
@@ -113,7 +113,7 @@ class RiceMakerController:
 					print "correct?", self.queueitem['print']['correct']
 					print "vocab level:", self.queueitem['print']['vocablevel']
 					print "total rice this session:", self.ricecounter
-					print "percent correct this session:", str(round(self.ricecounter/10.0/self.iterator*100.0, 2))+"%"
+					print "percent correct this session:", str(round(self.ricecounter/10.0/self.iterator*50.0, 2))+"%"
 					print "iterations per second", str(self.iterator/(time.time()-self.starttime)), ";", "rice per second", str(self.ricecounter/(time.time() - self.starttime))
 					print "******************************************"
 					for key in self.queueitem['dict'].keys():
