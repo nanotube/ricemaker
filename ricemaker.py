@@ -57,7 +57,7 @@ class VersionInfo:
     '''
     def __init__(self):
         self.name = "RiceMaker"
-        self.version = "0.4.0"
+        self.version = "0.4.1"
         self.description = "Script to automatically generate rice on freerice.com"
         self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
         self.license = "GPL"
