@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.3.4  23-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.3.5  23-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -57,7 +57,7 @@ class VersionInfo:
 	'''
 	def __init__(self):
 		self.name = "RiceMaker"
-		self.version = "0.3.4"
+		self.version = "0.3.5"
 		self.description = "Script to automatically generate rice on freerice.com"
 		self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
 		self.license = "GPL"
@@ -134,7 +134,7 @@ class RiceMakerController:
 			f = open(self.options.freericedictfilename, 'wb')
 			pickle.dump(self.ricewordlist, f, -1)
 			f.close()
-			print 'Successfully wrote internal dictionary to file.'
+			print 'Successfully wrote internal dictionary to file.', len(self.ricewordlist), "elements in dictionary."
 			for t in self.threadlist:
 				t.cancel()
 	
