@@ -32,7 +32,7 @@
 #
 # Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
 # 
-# Version:      ricemaker.py  0.3.3  20-Nov-2007  dfolkins@temple.edu
+# Version:      ricemaker.py  0.3.4  23-Nov-2007  dfolkins@temple.edu
 #
 # Project home (where to get the freshest version): 
 #               http://smokyflavor.wikispaces.com/RiceMaker
@@ -57,7 +57,7 @@ class VersionInfo:
 	'''
 	def __init__(self):
 		self.name = "RiceMaker"
-		self.version = "0.3.3"
+		self.version = "0.3.4"
 		self.description = "Script to automatically generate rice on freerice.com"
 		self.url = "http://smokyflavor.wikispaces.com/RiceMaker"
 		self.license = "GPL"
@@ -179,7 +179,7 @@ class RiceMakerController:
 		parser.add_option("-f", "--freericedictfilename", action="store", dest="freericedictfilename", help="Filename for internally generated dictionary. You may specify a full path here, otherwise it will just get written to the same directory where this script resides (default behavior). No need to change this unless you really feel like it. [default: %default]")
 		parser.add_option("-i", "--iterationsbetweendumps", action="store", type="int", dest="iterationsbetweendumps", help="Number of iterations between dictionary dumps to file. More often than 5 minutes is really unnecessary (Time between dumps is iterationsbetweendumps * avgsleeptime = time between dumps.) [default: %default]")
 		parser.add_option("-t", "--threads", action="store", type="int", dest="threads", help="Number of simultaneous threads of RiceMaker to start. [default: %default]")
-		parser.add_option("-b", "--benchmark", type="choice", action="append", dest="benchmark", choices=['dict','wordnet'], help="For benchmarking or dictionary building purposes: do you want to skip dict.org lookups and/or wordnet lookups ('dict' to skip dict.org, 'wordnet' to skip wordnet). [default: %default]")
+		parser.add_option("-b", "--benchmark", type="choice", action="append", dest="benchmark", choices=['dict.org','wordnet', 'idict'], help="For benchmarking or dictionary building purposes: do you want to skip dict.org lookups and/or wordnet and/or internal dictionary lookups ('dict.org' to skip dict.org, 'wordnet' to skip wordnet, 'idict' to skip internal dictionary). [default: %default]")
 
 		
 		parser.set_defaults(debug=False, 
@@ -188,7 +188,7 @@ class RiceMakerController:
 							sleephighsec=6,
 							freericedictfilename="freericewordlist.txt",
 							iterationsbetweendumps=1000,
-							threads=1,
+							threads=15,
 							benchmark=[])
 		
 		(self.options, args) = parser.parse_args()
@@ -323,13 +323,16 @@ class RiceMaker(threading.Thread):
 			return wordlist.keys()[random.randint(0,3)]
 	
 	def lookupInMyDict(self, targetword, wordlist):
-		try:
-			word = self.ricewordlist[targetword]
-			self.printDebug("internal dict match found!!!")
-			self.queueitem['print']['answer'] = word+" (source: internal dictionary)"
-			return word
-		except KeyError: #not in our dict
-			self.printDebug("no internal dict match found, trying wordnet")
+		if 'idict' not in self.options.benchmark:
+			try:
+				word = self.ricewordlist[targetword]
+				self.printDebug("internal dict match found!!!")
+				self.queueitem['print']['answer'] = word+" (source: internal dictionary)"
+				return word
+			except KeyError: #not in our dict
+				self.printDebug("no internal dict match found, trying wordnet")
+				return self.lookupInWordnet(targetword, wordlist)
+		else:
 			return self.lookupInWordnet(targetword, wordlist)
 	
 	def lookupInWordnet(self, targetword, wordlist):
@@ -351,7 +354,7 @@ class RiceMaker(threading.Thread):
 			return self.lookupInDictorg(targetword, wordlist)
 	
 	def lookupInDictorg(self, targetword, wordlist):
-		if 'dict' not in self.options.benchmark:
+		if 'dict.org' not in self.options.benchmark:
 			response = urllib2.urlopen('http://www.dict.org/bin/Dict', data=urllib.urlencode({'Query':targetword, 'Form':'Dict1', 'Strategy':'*', 'Database':'*'}))
 			result = response.read()
 			for word in wordlist.keys():
