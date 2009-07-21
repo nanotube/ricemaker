@@ -30,9 +30,7 @@
 # ricemaker.py
 #               Script to automatically generate rice on freerice.com
 #
-# Author:       Daniel Folkinshteyn <dfolkins@temple.edu>
-# 
-# Version:      ricemaker.py  0.5.1  02-Jul-2009  dfolkins@gmail.com
+# Author:       Daniel Folkinshteyn <nanotube@users.sourceforge.net>
 #
 # Project home (where to get the freshest version): 
 #               http://wiki.df.dreamhosters.com/wiki/RiceMaker
@@ -57,12 +55,12 @@ class VersionInfo:
     '''
     def __init__(self):
         self.name = "RiceMaker"
-        self.version = "0.5.2"
+        self.version = "0.5.3"
         self.description = "Script to automatically generate rice on freerice.com"
         self.url = "http://wiki.df.dreamhosters.com/wiki/RiceMaker"
         self.license = "GPL"
         self.author = "Daniel Folkinshteyn"
-        self.author_email = "dfolkins@temple.edu"
+        self.author_email = "nanotube@users.sourceforge.net"
         self.platform = "Any"
 
 class RiceMakerController:
